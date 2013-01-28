@@ -24,6 +24,7 @@ library
                      , citeproc-hs >= 0.3.7
                      , curl >= 1.3.8
                      , download-curl >= 0.1.4 
+                     , MissingH
                      , persistent >= 1.1.4
 
 Test-Suite doctest
