@@ -15,8 +15,8 @@ import           System.IO (hGetContents, hClose)
 
 -- | resolve a DOI to a 'Reference'.
 --
--- >>> (\(Right x) -> take 7 $ title x) <$> readDOI "10.1088/1749-4699/5/1/015003"
--- "Paraiso"
+-- >>> (fmap (take 7 . title)) <$>  readDOI "10.1088/1749-4699/5/1/015003"
+-- Right "Paraiso"
 
 readDOI :: String -> IO (Either String Reference)
 readDOI doi = do
@@ -37,8 +37,8 @@ readDOI doi = do
 
 -- | resolve an arXiv ID to a 'Reference'.
 --
--- >>> (\(Right x) -> take 7 $ title x) <$> readArXiv "1204.4779"
--- "Paraiso"
+-- >>> (fmap (take 7 . title)) <$> readArXiv "1204.4779"
+-- Right "Paraiso"
 
 
 readArXiv :: String -> IO (Either String Reference)
@@ -58,8 +58,8 @@ readArXiv arXiv = do
 
 -- | resolve an ISBN to a 'Reference'.
 --
--- >>> (\(Right x) -> title x) <$> readIsbn "9780199233212"
--- "The nature of computation"
+-- >>> (fmap title) <$> readIsbn "9780199233212"
+-- Right "The nature of computation"
 
 
 readIsbn :: String -> IO (Either String Reference)
