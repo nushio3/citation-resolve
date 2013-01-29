@@ -7,15 +7,15 @@ import           Network.Curl.Opts (CurlOption(CurlFollowLocation, CurlHttpHeade
 import qualified Data.ByteString.Char8 as BS
 import           Text.CSL (Reference, readBiblioString, BibFormat(Bibtex, Json))
 import           Text.Printf
-import           Data.String.Utils (replace)
+import           System.Process (runInteractiveCommand)
+import           System.IO (hGetContents, hClose)
 
 -- $setup
 -- >>> import Text.CSL
 
 -- | resolve a DOI to a 'Reference'.
 --
--- > (\(Right x) -> take 7 $ title x) <$> readDOI "10.1088/1749-4699/5/1/015003"
---
+-- >>> (\(Right x) -> take 7 $ title x) <$> readDOI "10.1088/1749-4699/5/1/015003"
 -- "Paraiso"
 
 readDOI :: String -> IO (Either String Reference)
@@ -37,8 +37,7 @@ readDOI doi = do
 
 -- | resolve an arXiv ID to a 'Reference'.
 --
--- > (\(Right x) -> take 7 $ title x) <$> readArXiv "1204.
---
+-- >>> (\(Right x) -> take 7 $ title x) <$> readArXiv "1204.4779"
 -- "Paraiso"
 
 
@@ -59,26 +58,34 @@ readArXiv arXiv = do
 
 -- | resolve an ISBN to a 'Reference'.
 --
--- >>> readIsbn "0521288843"
--- "Paraiso"
+-- >>> (\(Right x) -> title x) <$> readIsbn "9780199233212"
+-- "The nature of computation"
 
 
 readIsbn :: String -> IO (Either String Reference)
 readIsbn isbn = do
   let
-      opts = [ CurlFollowLocation True]
-      url = printf "http://xisbn.worldcat.org/webservices/xid/isbn/%s?method=getMetadata&format=json&fl=*"
+      opts = [ CurlFollowLocation True ]
+      url = printf "http://xisbn.worldcat.org/webservices/xid/isbn/%s?method=getMetadata&format=xml&fl=*"
             isbn
   res <- openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> do
-      rs <- readBiblioString Json $
-            replace "\"stat\":\"ok\"," "" $
-            BS.unpack bs
+      let xsltfn = "/tmp/isbn2bibtex.xsl"
+      writeFile xsltfn xsl
+      (hIn,hOut,_,_) <- runInteractiveCommand $ printf "xsltproc %s -" xsltfn
+      BS.hPutStr hIn bs
+      hClose hIn
+      str <- hGetContents hOut
+      rs <- readBiblioString Bibtex str
+
       case rs of
         [r] -> return $ Right r
         []  -> return $ Left $ url ++ " returned no reference."
         _   -> do
           print rs
           return $ Left $ url ++ " returned multiple references."
+
+  where
+    xsl = "<?xml version=\"1.0\"?>\n<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:wc=\"http://worldcat.org/xid/isbn/\" version=\"1.0\">\n    <xsl:output method=\"text\" omit-xml-declaration=\"yes\" indent=\"no\"/>\n    <xsl:template match=\"wc:isbn\">\n        <code>\n    @BOOK{CiteKeyGoesHere,\n        AUTHOR = \"<xsl:value-of select=\"@author\"/>\",\n        TITLE = \"<xsl:value-of select=\"@title\"/>\",\n        PUBLISHER = \"<xsl:value-of select=\"@publisher\"/>\",\n        ADDRESS = \"<xsl:value-of select=\"@city\"/>\",\n        YEAR =\"<xsl:value-of select=\"@year\"/>\"}\n</code>\n    </xsl:template>\n</xsl:stylesheet>\n"
