@@ -21,4 +21,4 @@ main :: IO ()
 main = do
   files <- findHs "Text"
   putStrLn $ "testing: " ++ unwords files
-  doctest files
+  doctest $ ["-idist/build/autogen"] ++ files
