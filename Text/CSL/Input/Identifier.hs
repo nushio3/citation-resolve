@@ -34,121 +34,97 @@ import qualified Paths_citation_resolve as Paths
 
 
 
--- | reference ID that can point to a unique reference.
-data RefPtr
-    = RefPtrDOI    String
-    | RefPtrISBN   String
-    | RefPtrArXiv  String
-    | RefPtrBibtex String
-    deriving (Eq, Show, Read)
-
 -- | data structure for accessing the reference cache database.
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistUpperCase|
-PersistentReference
-  refPtr String
-  content String -- content in bibtex
+WebCache
+  url     String
+  content BS.ByteString
   deriving Show
 |]
 
--- |
-readCached :: RefPtr -> IO (Either String Reference)
-readCached rid = do
-  dbfn <- getDataFileName "reference.db3"
+-- | 'Resolver' is a function that converts a 'String' key to some
+-- value @a@, which may fail with an error message.
+type Resolver a = String -> IO (Either String a)
 
-  let key :: String
-      key = show rid
+-- | Take a resolver, and make it cached.
+cached :: Resolver BS.ByteString -> Resolver BS.ByteString
+cached resolver0 url = do
+  dbfn <- getDataFileName "reference.db3"
 
   runResourceT $ withSqlitePool (Text.pack dbfn) 1 $ \pool -> do
       flip runSqlPool pool $ runMigration migrateAll
       mx <- flip runSqlPool pool $ do
-        selectFirst [PersistentReferenceRefPtr ==. key] []
+        selectFirst [WebCacheUrl ==. url] []
       case mx of
         Just x  -> do
-          let refStr = persistentReferenceContent $ entityVal x
-          liftIO $ resolveBibtex (show $ entityKey x) refStr
+          return $ Right $  webCacheContent $ entityVal x
 
         Nothing -> do
-          let memoized resolver0 str = do
-                ret <- liftIO $ resolver0 str
-                case ret of
-                  Right bibtex0 ->
-                    flip runSqlPool pool $ do
-                      insert $ PersistentReference
-                        key bibtex0
-                return ret
-              rbt (Right btstr) = liftIO $ resolveBibtex key btstr
-              rbt (Left x) = return $ Left x
-          case rid of
-            RefPtrDOI   str  -> memoized resolveDOI str >>= rbt
-            RefPtrArXiv str  -> memoized resolveArXiv str>>= rbt
-            RefPtrISBN  str  -> memoized resolveISBN str>>= rbt
-            RefPtrBibtex str -> liftIO $ resolveBibtex str str
+          ret <- liftIO $ resolver0 url
+          case ret of
+            Right content0 ->
+              flip runSqlPool pool $ do
+                insert $ WebCache
+                   url content0
+          return ret
 
 
 
-type Resolver a = String -> IO (Either String a)
+
 
 resolveBibtex :: String -> Resolver Reference
-resolveBibtex url str = do
+resolveBibtex src str = do
   rs <- readBiblioString Bibtex str
   case rs of
     [r] -> return $ Right r
-    []  -> return $ Left $ url ++ " returned no reference."
-    _   -> return $ Left $ url ++ " returned multiple references."
+    []  -> return $ Left $ src ++ " returned no reference."
+    _   -> return $ Left $ src ++ " returned multiple references."
 
 
 -- | resolve a DOI to a 'Reference'.
 --
 -- >>> (fmap (take 7 . title)) <$>  readDOI "10.1088/1749-4699/5/1/015003"
 -- Right "Paraiso"
+
 readDOI :: Resolver Reference
-readDOI = readCached . RefPtrDOI
-
-
-resolveDOI :: Resolver String
-resolveDOI doi = do
+readDOI doi = do
   let
       opts = [ CurlFollowLocation True
              , CurlHttpHeaders ["Accept: text/bibliography; style=bibtex"]
              ]
       url = "http://dx.doi.org/" ++ doi
-  res <- openURIWithOpts opts url
+  res <- cached (openURIWithOpts opts) url
   case res of
     Left msg -> return $ Left msg
-    Right bs -> return $ Right $ BS.unpack bs
+    Right bs -> resolveBibtex url $ BS.unpack bs
 
 -- | resolve an arXiv ID to a 'Reference'.
 --
 -- >>> (fmap (take 7 . title)) <$> readArXiv "1204.4779"
 -- Right "Paraiso"
-readArXiv :: Resolver Reference
-readArXiv = readCached . RefPtrArXiv
 
-resolveArXiv :: Resolver String
-resolveArXiv arXiv = do
+readArXiv :: Resolver Reference
+readArXiv arXiv = do
   let
       opts = [ CurlFollowLocation True]
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&arXiv:" ++ arXiv
-  res <- openURIWithOpts opts url
+  res <- cached (openURIWithOpts opts) url
   case res of
     Left msg -> return $ Left msg
-    Right bs -> return $ Right $ BS.unpack bs
+    Right bs -> resolveBibtex url $ BS.unpack bs
 
 -- | resolve an ISBN to a 'Reference'.
 --
 -- >>> (fmap title) <$> readISBN "9780199233212"
 -- Right "The nature of computation"
+
 readISBN :: Resolver Reference
-readISBN = readCached . RefPtrISBN
-
-
-resolveISBN :: Resolver String
-resolveISBN isbn = do
+readISBN isbn = do
   let
       opts = [ CurlFollowLocation True ]
       url = printf "http://xisbn.worldcat.org/webservices/xid/isbn/%s?method=getMetadata&format=xml&fl=*"
             isbn
-  res <- openURIWithOpts opts url
+  res <- cached (openURIWithOpts opts) url
   case res of
     Left msg -> return $ Left msg
     Right bs -> do
@@ -158,11 +134,10 @@ resolveISBN isbn = do
       BS.hPutStr hIn bs
       hClose hIn
       str <- hGetContents hOut
-      return $ Right str
+      resolveBibtex url str
 
   where
     xsl = "<?xml version=\"1.0\"?>\n<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:wc=\"http://worldcat.org/xid/isbn/\" version=\"1.0\">\n    <xsl:output method=\"text\" omit-xml-declaration=\"yes\" indent=\"no\"/>\n    <xsl:template match=\"wc:isbn\">\n        <code>\n    @BOOK{CiteKeyGoesHere,\n        AUTHOR = \"<xsl:value-of select=\"@author\"/>\",\n        TITLE = \"<xsl:value-of select=\"@title\"/>\",\n        PUBLISHER = \"<xsl:value-of select=\"@publisher\"/>\",\n        ADDRESS = \"<xsl:value-of select=\"@city\"/>\",\n        YEAR =\"<xsl:value-of select=\"@year\"/>\"}\n</code>\n    </xsl:template>\n</xsl:stylesheet>\n"
-    toge = undefined{-" 1+1 "-}
 
 
 -- a safer way to get data file name.
