@@ -35,7 +35,7 @@ import qualified Paths_citation_resolve as Paths
 
 
 -- | reference ID that can point to a unique reference.
-data RefPtr 
+data RefPtr
     = RefPtrDOI    String
     | RefPtrISBN   String
     | RefPtrArXiv  String
@@ -50,7 +50,7 @@ PersistentReference
   deriving Show
 |]
 
--- | 
+-- |
 readCached :: RefPtr -> IO (Either String Reference)
 readCached rid = do
   dbfn <- getDataFileName "reference.db3"
@@ -64,19 +64,16 @@ readCached rid = do
         selectFirst [PersistentReferenceRefPtr ==. key] []
       case mx of
         Just x  -> do
-          liftIO $ putStrLn "found!"
           let refStr = persistentReferenceContent $ entityVal x
-          liftIO $ print refStr
           liftIO $ resolveBibtex (show $ entityKey x) refStr
-                   
+
         Nothing -> do
-          liftIO $ putStrLn "not found."
           let memoized resolver0 str = do
                 ret <- liftIO $ resolver0 str
                 case ret of
-                  Right bibtex0 -> 
+                  Right bibtex0 ->
                     flip runSqlPool pool $ do
-                      insert $ PersistentReference 
+                      insert $ PersistentReference
                         key bibtex0
                 return ret
               rbt (Right btstr) = liftIO $ resolveBibtex key btstr
