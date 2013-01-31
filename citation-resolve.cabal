@@ -3,8 +3,25 @@
 
 name:                citation-resolve
 version:             0.1.0.0
-synopsis:            convert document identifiers such as DOI, ISBN, arXiv ID to bibliographic reference.
--- description:         
+synopsis:            convert document IDs such as DOI, ISBN, arXiv ID to bibliographic reference.
+description:         
+  This modules provides a way to convert document identifiers, such
+  as DOIs, ISBNs, arXiv IDs to bibliographic references.
+  
+  .
+
+  Each type of identifiers will be converted via internet services
+  to a bibliographic record of type 'Text.CSL.Reference' , which in
+  turn can be rendered in various format using @citeproc-hs@ package
+  <hackage.haskell.org/package/citeproc-hs> .
+  
+  .
+
+  Moreover, the server responses are cached in a local database,
+  making the server load as little as possible.
+
+
+
 homepage:            https://github.com/nushio3/citation-resolve
 license:             BSD3
 license-file:        LICENSE
@@ -19,6 +36,7 @@ Data-Files:          bibtex.csl
 
 library
   exposed-modules:     Text.CSL.Input.Identifier
+                       Text.CSL.Input.Identifier.Internal
 
   other-modules:       Paths_citation_resolve
 
@@ -30,7 +48,6 @@ library
                      , download-curl >= 0.1.4 
 --                   , hxt >= 9.3.1       -- TODO: treat xsl more properly 
 --                   , hxt-xslt >= 9.1.1  -- using these libraries.
-                     , MissingH
                      , persistent >= 1.1.4
                      , persistent-template >= 1.1.2
                      , persistent-sqlite >= 1.1.2
@@ -47,6 +64,7 @@ Test-Suite doctest
   Build-Depends: base
                   , directory >= 1.1
                   , filepath >= 1.2
+                  , MissingH >= 1.1
                   , doctest >= 0.9.3
 
 Test-Suite spec
