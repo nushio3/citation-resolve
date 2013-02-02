@@ -15,6 +15,7 @@ import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
 import           Data.List (span)
 import qualified Data.Text as Text
+import qualified Data.String.Utils as String (replace) 
 import           Database.Persist
 import           Database.Persist.TH
 import           Database.Persist.Sqlite
@@ -152,7 +153,9 @@ readArXiv arXiv = do
   res <- cached (openURIWithOpts opts) url
   case res of
     Left msg -> return $ Left msg
-    Right bs -> resolveBibtex url $ BS.unpack bs
+    Right bs -> resolveBibtex url $
+       String.replace "adsurl" "url" $
+       BS.unpack bs
 
 -- | resolve an ISBN to a 'Reference'.
 --
