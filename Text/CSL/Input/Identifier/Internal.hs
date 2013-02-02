@@ -85,7 +85,8 @@ resolveBibtex src str = do
     _   -> return $ Left $ src ++ " returned multiple references."
 
 
--- | resolve 'String' starting with  @"arXiv:"@ @"isbn:"@ @"doi:"@ to 'Reference' .
+-- | Multi-purpose reference ID resolver. Resolve 'String' starting
+-- with "arXiv:", "isbn:", "doi:" to 'Reference' .
 -- 
 -- >>> (==) <$> readArXiv "1204.4779" <*>  readID "arXiv:1204.4779"
 -- True
