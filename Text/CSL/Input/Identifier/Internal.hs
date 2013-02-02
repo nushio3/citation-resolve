@@ -12,6 +12,8 @@ import           Control.Applicative ((<$>))
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString.Char8 as BS
+import           Data.Char (toLower)
+import           Data.List (span)
 import qualified Data.Text as Text
 import           Database.Persist
 import           Database.Persist.TH
@@ -29,7 +31,7 @@ import qualified Paths_citation_resolve as Paths
 
 
 -- $setup
--- >>> import Control.Applicative((<$>))
+-- >>> import Control.Applicative((<$>), (<*>))
 -- >>> import Data.Either.Utils(forceEither)
 -- >>> import Text.CSL
 
@@ -81,6 +83,31 @@ resolveBibtex src str = do
     [r] -> return $ Right r
     []  -> return $ Left $ src ++ " returned no reference."
     _   -> return $ Left $ src ++ " returned multiple references."
+
+
+-- | resolve 'String' starting with  @"arXiv:"@ @"isbn:"@ @"doi:"@ to 'Reference' .
+-- 
+-- >>> (==) <$> readArXiv "1204.4779" <*>  readID "arXiv:1204.4779"
+-- True
+-- >>> (==) <$> readDOI "10.1088/1749-4699/5/1/015003" <*> readID "doi:10.1088/1749-4699/5/1/015003"
+-- True
+-- >>> (==) <$> readISBN "9780199233212" <*> readID "isbn:9780199233212"
+-- True
+
+
+
+readID :: Resolver Reference
+readID str 
+  | idId == "arxiv" = readArXiv addr
+  | idId == "doi"   = readDOI addr
+  | idId == "isbn"  = readISBN addr
+  | otherwise       = return $ Left $ "Unknown identifier type: " ++ str
+  where
+    (h,t) = span (/=':') str
+    idId = map toLower h
+    addr = drop 1 t
+    
+
 
 
 -- | resolve a DOI to a 'Reference'.
