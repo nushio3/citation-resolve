@@ -66,10 +66,12 @@ cached resolver0 url = do
         Nothing -> do
           ret <- liftIO $ resolver0 url
           case ret of
-            Right content0 ->
+            Right content0 -> do
               flip runSqlPool pool $ do
                 insert $ WebCache
                    url content0
+              return ()
+            Left _ -> return ()
           return ret
 
 
