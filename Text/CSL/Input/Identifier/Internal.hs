@@ -15,7 +15,7 @@ import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
 import           Data.List (span)
 import qualified Data.Text as Text
-import qualified Data.String.Utils as String (replace) 
+import qualified Data.String.Utils as String (replace)
 import           Database.Persist
 import           Database.Persist.TH
 import           Database.Persist.Sqlite
@@ -90,7 +90,7 @@ resolveBibtex src str = do
 
 -- | Multi-purpose reference ID resolver. Resolve 'String' starting
 -- with "arXiv:", "isbn:", "doi:" to 'Reference' .
--- 
+--
 -- >>> (==) <$> readArXiv "1204.4779" <*>  readID "arXiv:1204.4779"
 -- True
 -- >>> (==) <$> readDOI "10.1088/1749-4699/5/1/015003" <*> readID "doi:10.1088/1749-4699/5/1/015003"
@@ -101,16 +101,17 @@ resolveBibtex src str = do
 
 
 readID :: Resolver Reference
-readID str 
-  | idId == "arxiv" = readArXiv addr
-  | idId == "doi"   = readDOI addr
-  | idId == "isbn"  = readISBN addr
-  | otherwise       = return $ Left $ "Unknown identifier type: " ++ str
+readID str
+  | idId == "arxiv"   = readArXiv addr
+  | idId == "bibcode" = readBibcode addr
+  | idId == "doi"     = readDOI addr
+  | idId == "isbn"    = readISBN addr
+  | otherwise         = return $ Left $ "Unknown identifier type: " ++ str
   where
     (h,t) = span (/=':') str
     idId = map toLower h
     addr = drop 1 t
-    
+
 
 
 
@@ -138,7 +139,7 @@ readDOI doi = do
 
 -- | resolve an arXiv ID to a 'Reference'. If it's a referred journal paper, it can also resolve
 --   the refereed version of the paper.
--- 
+--
 -- >>>  ref <- forceEither <$> readArXiv "1204.4779"
 -- >>> title ref
 -- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
@@ -156,6 +157,34 @@ readArXiv arXiv = do
     Right bs -> resolveBibtex url $
        String.replace "adsurl" "url" $
        BS.unpack bs
+
+
+
+-- | resolve an Bibcode ID to a 'Reference'.
+--
+-- >>>  ref <- forceEither <$> readBibcode " 2012CS&D....5a5003M"
+-- >>> title ref
+-- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
+-- >>> containerTitle ref
+-- "Computational Science and Discovery"
+
+readBibcode :: Resolver Reference
+readBibcode idstr = do
+  let
+      opts = [ CurlFollowLocation True]
+      url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&bibcode=" ++ idstr
+  res <- cached (openURIWithOpts opts) url
+  case res of
+    Left msg -> return $ Left msg
+    Right bs -> resolveBibtex url $
+       String.replace "adsurl" "url" $
+       BS.unpack bs
+
+
+
+
+
+
 
 -- | resolve an ISBN to a 'Reference'.
 --

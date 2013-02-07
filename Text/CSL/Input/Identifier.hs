@@ -11,9 +11,15 @@
 
 
 module Text.CSL.Input.Identifier
-       (readID, readDOI, readArXiv, readISBN )
+       (EReference, readID, readDOI, readArXiv, readBibcode, readISBN )
        where
 
 
 import qualified Text.CSL
 import           Text.CSL.Input.Identifier.Internal
+
+
+-- | EReference is the type returned by the 'Reference' resolver,
+-- accompanied with possible error message.
+
+type EReference = Either String Text.CSL.Reference
