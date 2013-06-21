@@ -47,6 +47,7 @@ library
                      , directory >= 1.2
                      , download-curl >= 0.1.4 
                      , MissingH >= 1.1
+                     , monad-logger >= 0.3.1.1
 --                   , hxt >= 9.3.1       -- TODO: treat xsl more properly 
 --                   , hxt-xslt >= 9.1.1  -- using these libraries.
                      , persistent >= 1.1.4

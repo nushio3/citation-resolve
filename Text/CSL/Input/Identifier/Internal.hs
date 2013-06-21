@@ -10,6 +10,7 @@ module Text.CSL.Input.Identifier.Internal where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Logger (runNoLoggingT)
 import           Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
@@ -56,13 +57,13 @@ cached :: Resolver BS.ByteString -> Resolver BS.ByteString
 cached resolver0 url = do
   dbfn <- getDataFileName "reference.db3"
 
-  runResourceT $ withSqlitePool (Text.pack dbfn) 1 $ \pool -> do
+  runNoLoggingT $ runResourceT $  withSqlitePool (Text.pack dbfn) 1 $ \pool -> do
       flip runSqlPool pool $ runMigration migrateAll
       mx <- flip runSqlPool pool $ do
         selectFirst [WebCacheUrl ==. url] []
       case mx of
         Just x  -> do
-          return $ Right $  webCacheContent $ entityVal x
+          return $ Right $ webCacheContent $ entityVal x
 
         Nothing -> do
           ret <- liftIO $ resolver0 url
