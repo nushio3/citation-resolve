@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                citation-resolve
-version:             0.2.3
+version:             0.2.4
 synopsis:            convert document IDs such as DOI, ISBN, arXiv ID to bibliographic reference.
 description:         
   This modules provides a way to convert document identifiers, such
@@ -50,7 +50,7 @@ library
                      , monad-logger >= 0.3.1.1
 --                   , hxt >= 9.3.1       -- TODO: treat xsl more properly 
 --                   , hxt-xslt >= 9.1.1  -- using these libraries.
-                     , persistent >= 1.1.4
+                     , persistent >= 1.2.0.2
                      , persistent-template >= 1.1.2
                      , persistent-sqlite >= 1.1.2
                      , process >= 1.1
