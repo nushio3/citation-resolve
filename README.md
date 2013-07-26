@@ -10,3 +10,5 @@ convert document identifiers such as DOI, ISBN, arXiv ID to bibliographic refere
 >>> containerTitle ref
 "Computational Science and Discovery"
 ```
+
+TODO: suppport text-based CSL local database instead of SQL (easier to handle with repositories.)
