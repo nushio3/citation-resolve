@@ -40,6 +40,8 @@ library
 
   other-modules:       Paths_citation_resolve
 
+  Hs-Source-Dirs: src
+
   build-depends:       base >=4.5 &&  <5
                      , bytestring >= 0.9.2.1
                      , citeproc-hs >= 0.3.7
