@@ -87,8 +87,6 @@ readID str
 -- >>> putStrLn $ url ref
 -- http://dx.doi.org/10.1088/1749-4699/5/1/015003
 
-
-
 readDOI :: Resolver Reference
 readDOI doi = do
   let
@@ -98,7 +96,7 @@ readDOI doi = do
       url = "http://dx.doi.org/" ++ doi
   res <- cached (openURIWithOpts opts) url
   case res of
-    Left msg -> return $ Left msg
+    Left msg -> return $ Left $ url ++ " : " ++ msg
     Right bs -> resolveBibtex url $ BS.unpack bs
 
 -- | resolve an arXiv ID to a 'Reference'. If it's a referred journal paper, it can also resolve
