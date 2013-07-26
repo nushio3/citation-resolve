@@ -29,7 +29,7 @@ author:              Takayuki Muranushi
 maintainer:          muranushi@gmail.com
 -- copyright:           
 category:            Text
-build-type:          Simple
+build-type:          Custom
 cabal-version:       >=1.8
 
 Data-Files:          bibtex.csl
@@ -47,27 +47,25 @@ library
                      , directory >= 1.2
                      , download-curl >= 0.1.4 
                      , MissingH >= 1.1
-                     , monad-logger >= 0.3.1.1
 --                   , hxt >= 9.3.1       -- TODO: treat xsl more properly 
 --                   , hxt-xslt >= 9.1.1  -- using these libraries.
-                     , persistent >= 1.2.0.2
-                     , persistent-template >= 1.1.2
-                     , persistent-sqlite >= 1.1.2
                      , process >= 1.1
-                     , resourcet >= 0.4.4
                      , text >= 0.11
                      , transformers >= 0.3
 
-Test-Suite doctest
+Test-Suite doctests
   Type: exitcode-stdio-1.0
   HS-Source-Dirs: test
-  Ghc-Options: -threaded -Wall
+  Ghc-Options: -Wall -threaded 
   Main-Is: doctests.hs
+  
+  other-modules: Build_doctests
+
   Build-Depends: base
-                  , directory >= 1.1
-                  , filepath >= 1.2
-                  , MissingH >= 1.1
-                  , doctest >= 0.9.3
+               , directory >= 1.1
+               , filepath >= 1.2
+               , MissingH >= 1.1
+               , doctest >= 0.9.3
 
 Test-Suite spec
   Type: exitcode-stdio-1.0

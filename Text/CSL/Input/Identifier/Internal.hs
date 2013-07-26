@@ -10,16 +10,11 @@ module Text.CSL.Input.Identifier.Internal where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Logger (runNoLoggingT)
-import           Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
 import           Data.List (span)
 import qualified Data.Text as Text
 import qualified Data.String.Utils as String (replace)
-import           Database.Persist
-import           Database.Persist.TH
-import           Database.Persist.Sqlite
 import           Network.Curl.Download (openURIWithOpts)
 import           Network.Curl.Opts (CurlOption(CurlFollowLocation, CurlHttpHeaders))
 import           System.Directory (createDirectoryIfMissing)
@@ -39,45 +34,13 @@ import qualified Paths_citation_resolve as Paths
 
 
 
-
--- | data structure for accessing the reference cache database.
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistUpperCase|
-WebCache
-  url     String
-  content BS.ByteString
-  deriving Show
-|]
-
 -- | 'Resolver' is a function that converts a 'String' key to some
 -- value @a@, which may fail with an error message.
 type Resolver a = String -> IO (Either String a)
 
 -- | Take a resolver, and make it cached.
 cached :: Resolver BS.ByteString -> Resolver BS.ByteString
-cached resolver0 url = do
-  dbfn <- getDataFileName "reference.db3"
-
-  runNoLoggingT $ runResourceT $  withSqlitePool (Text.pack dbfn) 1 $ \pool -> do
-      flip runSqlPool pool $ runMigration migrateAll
-      mx <- flip runSqlPool pool $ do
-        selectFirst [WebCacheUrl ==. url] []
-      case mx of
-        Just x  -> do
-          return $ Right $ webCacheContent $ entityVal x
-
-        Nothing -> do
-          ret <- liftIO $ resolver0 url
-          case ret of
-            Right content0 -> do
-              flip runSqlPool pool $ do
-                insert $ WebCache
-                   url content0
-              return ()
-            Left _ -> return ()
-          return ret
-
-
-
+cached resolver0 = resolver0
 
 -- | parse a Bibtex entry obtained in various ways.
 resolveBibtex :: String -> Resolver Reference

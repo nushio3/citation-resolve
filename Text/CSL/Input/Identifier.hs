@@ -19,6 +19,11 @@ import qualified Text.CSL
 import           Text.CSL.Input.Identifier.Internal
 
 
+-- | Type synonym for document identifier.
+
+type Identifier = String
+
+
 -- | EReference is the type returned by the 'Reference' resolver,
 -- accompanied with possible error message.
 
