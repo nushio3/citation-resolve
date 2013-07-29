@@ -10,12 +10,13 @@
 module Text.CSL.Input.Identifier.Internal where
 
 import           Control.Applicative ((<$>))
+import           Control.Lens (Iso, iso, Simple, use, to, (%=))
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.State.Strict as State
 import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
 import           Data.List (span)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.String.Utils as String (replace)
 import           Network.Curl.Download (openURIWithOpts)
@@ -39,6 +40,9 @@ import qualified Paths_citation_resolve as Paths
 -- | The data structure that carries the resolved references.
 newtype DB = DB { unDB :: Map.Map String Reference }
 
+db :: Simple Iso DB (Map.Map String Reference)
+db = iso unDB DB
+
 type ResolverT = State.StateT DB
 
 
@@ -48,7 +52,20 @@ type Resolver a = (MonadIO m, MonadState DB m) => String -> m (Either String a)
 
 -- | Take a resolver, and make it cached.
 cached :: String -> Resolver Reference -> Resolver Reference
-cached salt resolver0 = resolver0
+cached salt resolver0 docIDStr = do
+  let keyStr
+        | null salt = docIDStr
+        | otherwise = salt ++ ":" ++ docIDStr
+
+  val <- use $ db . to (Map.lookup keyStr)
+  case val of
+    Nothing -> do
+      ret <- resolver0 docIDStr
+      case ret of
+        Right ref -> do
+          db %= Map.insert keyStr ref
+      return ret
+    Just ref -> return $ Right ref
 
 -- | parse a Bibtex entry obtained in various ways.
 resolveBibtex :: String -> Resolver Reference
