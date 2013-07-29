@@ -5,20 +5,24 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Text.CSL.Input.Identifier.Internal where
 
 import           Control.Applicative ((<$>))
-import           Control.Lens (Iso, iso, Simple, use, to, (%=))
+import           Control.Lens (_2, Iso, iso, over,  Simple, to, use, (%=))
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.State.Strict as State
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Generic as AG
 import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
 import           Data.List (span)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.String.Utils as String (replace)
+import qualified Data.Yaml as Yaml
 import           Network.Curl.Download (openURIWithOpts)
 import           Network.Curl.Opts (CurlOption(CurlFollowLocation, CurlHttpHeaders))
 import           System.Directory (createDirectoryIfMissing)
@@ -40,10 +44,34 @@ import qualified Paths_citation_resolve as Paths
 -- | The data structure that carries the resolved references.
 newtype DB = DB { unDB :: Map.Map String Reference }
 
+instance Yaml.FromJSON DB where
+  parseJSON x0 = do
+    x1 <- Yaml.parseJSON x0
+    let x1' :: [(String, Aeson.Value)]
+        x1' = x1
+
+        p (str, v) = (str,) <$> case AG.fromJSON v of
+          Aeson.Success va' -> return va'
+          Aeson.Error str -> error str
+
+    x2 <- sequence $ map p x1'
+    let x3 = Map.fromList x2
+    return $ DB x3
+
+instance Yaml.ToJSON DB where
+  toJSON = Yaml.toJSON . map (over _2 AG.toJSON) . Map.toList . unDB
+
 db :: Simple Iso DB (Map.Map String Reference)
 db = iso unDB DB
 
 type ResolverT = State.StateT DB
+
+withDBFile :: (MonadIO m) => FilePath -> ResolverT m a -> m a
+withDBFile fn prog = do
+  con <- liftIO $ BS.readFile fn
+  let initState = DB $ Map.empty
+  (ret, finalState) <- State.runStateT prog initState
+  return ret
 
 
 -- | 'Resolver' is a function that converts a 'String' key to some
@@ -80,7 +108,7 @@ resolveBibtex src str = do
 -- | Multi-purpose reference ID resolver. Resolve 'String' starting
 -- with "arXiv:", "isbn:", "doi:" to 'Reference' .
 --
--- >>> (==) <$> readArXiv "1204.4779" <*>  readID "arXiv:1204.4779"
+-- >>> (==) <$> readArXiv "1204.4779" <*> readID "arXiv:1204.4779"
 -- True
 -- >>> (==) <$> readDOI "10.1088/1749-4699/5/1/015003" <*> readID "doi:10.1088/1749-4699/5/1/015003"
 -- True
