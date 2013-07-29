@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -10,9 +11,11 @@ module Text.CSL.Input.Identifier.Internal where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.State.Strict as State
 import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
 import           Data.List (span)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.String.Utils as String (replace)
 import           Network.Curl.Download (openURIWithOpts)
@@ -33,10 +36,15 @@ import qualified Paths_citation_resolve as Paths
 -- >>> import Text.CSL
 
 
+-- | The data structure that carries the resolved references.
+newtype DB = DB { unDB :: Map.Map String Reference }
+
+type ResolverT = State.StateT DB
+
 
 -- | 'Resolver' is a function that converts a 'String' key to some
 -- value @a@, which may fail with an error message.
-type Resolver a = String -> IO (Either String a)
+type Resolver a = (MonadIO m, MonadState DB m) => String -> m (Either String a)
 
 -- | Take a resolver, and make it cached.
 cached :: String -> Resolver Reference -> Resolver Reference
@@ -45,7 +53,7 @@ cached salt resolver0 = resolver0
 -- | parse a Bibtex entry obtained in various ways.
 resolveBibtex :: String -> Resolver Reference
 resolveBibtex src str = do
-  rs <- readBiblioString Bibtex str
+  rs <- liftIO $ readBiblioString Bibtex str
   case rs of
     [r] -> return $ Right r
     []  -> return $ Left $ src ++ " returned no reference."
@@ -96,7 +104,7 @@ readDOI = cached "doi" $ \docIDStr -> do
              , CurlHttpHeaders ["Accept: text/bibliography; style=bibtex"]
              ]
       url = "http://dx.doi.org/" ++ docIDStr
-  res <- openURIWithOpts opts url
+  res <-  liftIO $ openURIWithOpts opts url
   case res of
     Left msg -> return $ Left $ url ++ " : " ++ msg
     Right bs -> resolveBibtex url $ BS.unpack bs
@@ -115,7 +123,7 @@ readArXiv = cached "arXiv" $ \docIDStr -> do
   let
       opts = [ CurlFollowLocation True]
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&arXiv:" ++ docIDStr
-  res <- openURIWithOpts opts url
+  res <- liftIO $ openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> resolveBibtex url $
@@ -137,7 +145,7 @@ readBibcode = cached "bibcode" $ \docIDStr -> do
   let
       opts = [ CurlFollowLocation True]
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&bibcode=" ++ docIDStr
-  res <- openURIWithOpts opts url
+  res <- liftIO $ openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> resolveBibtex url $
@@ -162,16 +170,17 @@ readISBN = cached "ISBN" $ \docIDStr -> do
       opts = [ CurlFollowLocation True ]
       url = printf "http://xisbn.worldcat.org/webservices/xid/isbn/%s?method=getMetadata&format=xml&fl=*"
             docIDStr
-  res <- openURIWithOpts opts url
+  res <- liftIO $ openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> do
-      xsltfn <- getDataFileName "isbn2bibtex.xsl"
-      writeFile xsltfn xsl
-      (hIn,hOut,_,_) <- runInteractiveCommand $ printf "xsltproc %s -" xsltfn
-      BS.hPutStr hIn bs
-      hClose hIn
-      str <- hGetContents hOut
+      str <- liftIO $ do
+        xsltfn <- getDataFileName "isbn2bibtex.xsl"
+        writeFile xsltfn xsl
+        (hIn,hOut,_,_) <- runInteractiveCommand $ printf "xsltproc %s -" xsltfn
+        BS.hPutStr hIn bs
+        hClose hIn
+        hGetContents hOut
       resolveBibtex url str
 
   where
@@ -184,5 +193,3 @@ getDataFileName fn = do
   dd <- Paths.getDataDir
   createDirectoryIfMissing True dd
   Paths.getDataFileName fn
--- >>> take 7 $ title ref
--- "Paraiso"
