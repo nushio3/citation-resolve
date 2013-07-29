@@ -39,8 +39,8 @@ import qualified Paths_citation_resolve as Paths
 type Resolver a = String -> IO (Either String a)
 
 -- | Take a resolver, and make it cached.
-cached :: Resolver BS.ByteString -> Resolver BS.ByteString
-cached resolver0 = resolver0
+cached :: String -> Resolver Reference -> Resolver Reference
+cached salt resolver0 = resolver0
 
 -- | parse a Bibtex entry obtained in various ways.
 resolveBibtex :: String -> Resolver Reference
@@ -58,6 +58,8 @@ resolveBibtex src str = do
 -- >>> (==) <$> readArXiv "1204.4779" <*>  readID "arXiv:1204.4779"
 -- True
 -- >>> (==) <$> readDOI "10.1088/1749-4699/5/1/015003" <*> readID "doi:10.1088/1749-4699/5/1/015003"
+-- True
+-- >>> (==) <$> readBibcode "2012CS&D....5a5003M" <*>  readID "bibcode:2012CS&D....5a5003M"
 -- True
 -- >>> (==) <$> readISBN "9780199233212" <*> readID "isbn:9780199233212"
 -- True
@@ -88,13 +90,13 @@ readID str
 -- http://dx.doi.org/10.1088/1749-4699/5/1/015003
 
 readDOI :: Resolver Reference
-readDOI doi = do
+readDOI = cached "doi" $ \docIDStr -> do
   let
       opts = [ CurlFollowLocation True
              , CurlHttpHeaders ["Accept: text/bibliography; style=bibtex"]
              ]
-      url = "http://dx.doi.org/" ++ doi
-  res <- cached (openURIWithOpts opts) url
+      url = "http://dx.doi.org/" ++ docIDStr
+  res <- openURIWithOpts opts url
   case res of
     Left msg -> return $ Left $ url ++ " : " ++ msg
     Right bs -> resolveBibtex url $ BS.unpack bs
@@ -109,11 +111,11 @@ readDOI doi = do
 -- "Computational Science and Discovery"
 
 readArXiv :: Resolver Reference
-readArXiv arXiv = do
+readArXiv = cached "arXiv" $ \docIDStr -> do
   let
       opts = [ CurlFollowLocation True]
-      url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&arXiv:" ++ arXiv
-  res <- cached (openURIWithOpts opts) url
+      url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&arXiv:" ++ docIDStr
+  res <- openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> resolveBibtex url $
@@ -131,11 +133,11 @@ readArXiv arXiv = do
 -- "Computational Science and Discovery"
 
 readBibcode :: Resolver Reference
-readBibcode idstr = do
+readBibcode = cached "bibcode" $ \docIDStr -> do
   let
       opts = [ CurlFollowLocation True]
-      url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&bibcode=" ++ idstr
-  res <- cached (openURIWithOpts opts) url
+      url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&bibcode=" ++ docIDStr
+  res <- openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> resolveBibtex url $
@@ -155,12 +157,12 @@ readBibcode idstr = do
 -- "The nature of computation"
 
 readISBN :: Resolver Reference
-readISBN isbn = do
+readISBN = cached "ISBN" $ \docIDStr -> do
   let
       opts = [ CurlFollowLocation True ]
       url = printf "http://xisbn.worldcat.org/webservices/xid/isbn/%s?method=getMetadata&format=xml&fl=*"
-            isbn
-  res <- cached (openURIWithOpts opts) url
+            docIDStr
+  res <- openURIWithOpts opts url
   case res of
     Left msg -> return $ Left msg
     Right bs -> do
