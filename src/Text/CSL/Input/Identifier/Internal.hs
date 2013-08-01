@@ -95,7 +95,7 @@ cached salt resolver0 docIDStr = do
       return ret
     Just ref -> return $ Right ref
 
--- | parse a Bibtex entry obtained in various ways.
+-- | parse a Bibtex entry that contains single reference.
 resolveBibtex :: String -> Resolver Reference
 resolveBibtex src str = do
   rs <- liftIO $ readBiblioString Bibtex str
