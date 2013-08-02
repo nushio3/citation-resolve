@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -15,10 +16,12 @@ import           Control.Applicative ((<$>))
 import           Control.Lens (_2, Iso, iso, over,  Simple, to, use, (%=))
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.State.Strict as State
+import           Control.Monad.Trans.Either
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Generic as AG
 import qualified Data.ByteString.Char8 as BS
 import           Data.Char (toLower)
+import           Data.Default(Default(..))
 import           Data.List (span)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -44,51 +47,55 @@ import qualified Paths_citation_resolve as Paths
 -- | The data structure that carries the resolved references.
 newtype DB = DB { unDB :: Map.Map String String}
 
--- instance Yaml.FromJSON DB where
---   parseJSON x0 = do
---     x1 <- Yaml.parseJSON x0
---     let x1' :: [(String, Aeson.Value)]
---         x1' = x1
---
---         p (str, v) = (str,) <$> case AG.fromJSON v of
---           Aeson.Success va' -> return va'
---           Aeson.Error str -> error str
---
---     x2 <- sequence $ map p x1'
---     let x3 = Map.fromList x2
---     return $ DB x3
---
--- instance Yaml.ToJSON DB where
---   toJSON = Yaml.toJSON . map (over _2 AG.toJSON) . Map.toList . unDB
-
+-- | The lens for accessing the map within the DB.
 db :: Simple Iso DB (Map.Map String String)
 db = iso unDB DB
 
-type ResolverT = State.StateT DB
+instance Default DB where def = DB Map.empty
 
-withDBFile :: (MonadIO m) => FilePath -> ResolverT m a -> m a
+instance Yaml.FromJSON DB where
+  parseJSON x0 = do
+    x1 <- Yaml.parseJSON x0
+    let x1' :: [(String, [String])]
+        x1' = x1
+    return $ DB $ Map.fromList $ map (over _2 unlines) x1'
+
+instance Yaml.ToJSON DB where
+  toJSON = Yaml.toJSON . map (over _2 lines) . Map.toList . unDB
+
+
+
+withDBFile :: (MonadIO m, MonadState DB m) => FilePath -> m a -> EitherT String m a
 withDBFile fn prog = do
   con <- liftIO $ BS.readFile fn
-  let initState = DB $ Map.empty
-  (ret, finalState) <- State.runStateT prog initState
+  let initStateE :: Either String DB
+      initStateE = maybe (Left $ "cannot read/parse DB file: " ++ fn) Right
+                         (Yaml.decode con)
+  initState <- hoistEither initStateE
+  State.put initState
+  ret <- lift prog
+  finalState <- State.get
+  liftIO $ BS.writeFile fn $ Yaml.encode (finalState :: DB)
   return ret
 
 
--- | 'Resolver' is a function that converts a 'String' key to some
--- value @a@, which may fail with an error message.
-type a :>> b = (MonadIO m, MonadState DB m) => a -> m (Either String b)
-type RM m a b = a -> m (Either String b)
+-- | Resolver Monad is a function that converts a key of type @a@ to some
+-- other type @b@, which may fail with an error message.
+type RM m a b = a -> EitherT String m b
 
+-- | Perform possibly failing IO within a monad
 
+liftIOE :: MonadIO m => IO (Either a b) -> EitherT a m b
+liftIOE = (>>= hoistEither) . liftIO
 
 -- | parse a Bibtex entry that contains single reference.
-resolveBibtex :: String -> String :>> Reference
-resolveBibtex src str = do
+resolveBibtex :: MonadIO m => String -> RM m String Reference
+resolveBibtex url str = do
   rs <- liftIO $ readBiblioString Bibtex str
   case rs of
-    [r] -> return $ Right r
-    []  -> return $ Left $ src ++ " returned no reference."
-    _   -> return $ Left $ src ++ " returned multiple references."
+    [r] -> right r
+    []  -> left $ url ++ " returned no parsable reference."
+    _   -> left $ url ++ " returned multiple references."
 
 -- | Multi-purpose reference ID resolver. Resolve 'String' starting
 -- with "arXiv:", "isbn:", "doi:" to 'Reference' .
@@ -104,127 +111,83 @@ resolveBibtex src str = do
 
 
 
-readID :: String :>> Reference
-readID url = do
+resolveID :: forall m. (MonadIO m, MonadState DB m) => RM m String Reference
+resolveID url = do
   val <- use $ db . to (Map.lookup url)
   case val of
     Just bibtexStr -> resolveBibtex url bibtexStr
     Nothing -> do
-      let Right reader = selectResolver
-      Right bibtexStr <- reader addr
+      reader <- hoistEither selectResolver
+      bibtexStr <- reader addr
       ret <- resolveBibtex url bibtexStr
-      case ret of
-        Right ref -> do
-          db %= Map.insert url bibtexStr
+      db %= Map.insert url bibtexStr
       return ret
 
 
-  where
-    (h,t) = span (/=':') url
-    idId = map toLower h
-    addr = drop 1 t
+   where
+     (h,t) = span (/=':') url
+     idId = map toLower h
+     addr = drop 1 t
 
-    selectResolver =
-      maybe (Left $ "Unknown identifier type: " ++ idId) (Right . snd) $
-      headMay $
-      filter ((==idId) . fst) specialResolverTbl
+     selectResolver :: Either String (RM m String String)
+     selectResolver =
+       maybe (Left $ "Unknown identifier type: " ++ idId) (Right . snd) $
+       headMay $
+       filter ((==idId) . fst) specialResolverTbl
 
-    specialResolverTbl =
-      [ ("arxiv"   , readArXiv   )
-      , ("bibcode" , readBibcode )
-      , ("doi"     , readDOI     )
-      , ("isbn"    , readISBN    ) ]
+     specialResolverTbl =
+       [ ("arxiv"   , resolveArXiv   )
+       , ("bibcode" , resolveBibcode )
+       , ("doi"     , resolveDOI     )
+       , ("isbn"    , resolveISBN    ) ]
 
 
--- | resolve a DOI to a 'Reference'.
---
--- >>> ref <- forceEither <$> readDOI "10.1088/1749-4699/5/1/015003"
--- >>> title ref
--- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
--- >>> putStrLn $ url ref
--- http://dx.doi.org/10.1088/1749-4699/5/1/015003
+-- resolvers for specific document IDs.
 
-readDOI :: String :>> String
-readDOI docIDStr = do
+resolveDOI :: MonadIO m => RM m String String
+resolveDOI docIDStr = do
   let
       opts = [ CurlFollowLocation True
              , CurlHttpHeaders ["Accept: text/bibliography; style=bibtex"]
              ]
       url = "http://dx.doi.org/" ++ docIDStr
-  res <-  liftIO $ openURIWithOpts opts url
-  case res of
-    Left msg -> return $ Left $ url ++ " : " ++ msg
-    Right bs -> return $ Right $ BS.unpack bs
+  bs <- liftIOE $ openURIWithOpts opts url
+  return $ BS.unpack bs
 
--- | resolve an arXiv ID to a 'Reference'. If it's a referred journal paper, it can also resolve
---   the refereed version of the paper.
---
--- >>>  ref <- forceEither <$> readArXiv "1204.4779"
--- >>> title ref
--- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
--- >>> containerTitle ref
--- "Computational Science and Discovery"
-
-readArXiv :: String :>> String
-readArXiv docIDStr = do
+resolveArXiv :: MonadIO m => RM m String String
+resolveArXiv docIDStr = do
   let
       opts = [ CurlFollowLocation True]
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&arXiv:" ++ docIDStr
-  res <- liftIO $ openURIWithOpts opts url
-  case res of
-    Left msg -> return $ Left msg
-    Right bs -> return $ Right $
-       String.replace "adsurl" "url" $
-       BS.unpack bs
+  bs <- liftIOE $ openURIWithOpts opts url
+  return $
+    String.replace "adsurl" "url" $
+    BS.unpack bs
 
-
-
--- | resolve an Bibcode ID to a 'Reference'.
---
--- >>>  ref <- forceEither <$> readBibcode " 2012CS&D....5a5003M"
--- >>> title ref
--- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
--- >>> containerTitle ref
--- "Computational Science and Discovery"
-
-readBibcode :: String :>> String
-readBibcode docIDStr = do
+resolveBibcode :: MonadIO m => RM m String String
+resolveBibcode docIDStr = do
   let
       opts = [ CurlFollowLocation True]
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&bibcode=" ++ docIDStr
-  res <- liftIO $ openURIWithOpts opts url
-  case res of
-    Left msg -> return $ Left msg
-    Right bs -> return $ Right $
-       String.replace "adsurl" "url" $
-       BS.unpack bs
+  bs <- liftIOE $ openURIWithOpts opts url
+  return $
+    String.replace "adsurl" "url" $ BS.unpack bs
 
-
-
--- | resolve an ISBN to a 'Reference'.
---
--- >>> ref <- forceEither <$> readISBN "9780199233212"
--- >>> title ref
--- "The nature of computation"
-
-readISBN :: String :>> String
-readISBN docIDStr = do
+resolveISBN :: MonadIO m => RM m String String
+resolveISBN docIDStr = do
   let
       opts = [ CurlFollowLocation True ]
       url = printf "http://xisbn.worldcat.org/webservices/xid/isbn/%s?method=getMetadata&format=xml&fl=*"
             docIDStr
-  res <- liftIO $ openURIWithOpts opts url
-  case res of
-    Left msg -> return $ Left msg
-    Right bs -> do
-      str <- liftIO $ do
-        xsltfn <- getDataFileName "isbn2bibtex.xsl"
-        writeFile xsltfn xsl
-        (hIn,hOut,_,_) <- runInteractiveCommand $ printf "xsltproc %s -" xsltfn
-        BS.hPutStr hIn bs
-        hClose hIn
-        hGetContents hOut
-      return $ Right str
+  bs <- liftIOE $ openURIWithOpts opts url
+  str <- liftIO $ do
+    xsltfn <- getDataFileName "isbn2bibtex.xsl"
+--    writeFile xsltfn xsl
+    (hIn,hOut,_,_) <- runInteractiveCommand $ printf "xsltproc %s -" xsltfn
+    BS.hPutStr hIn bs
+    hClose hIn
+    hGetContents hOut
+  return str
 
   where
     xsl = "<?xml version=\"1.0\"?>\n<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:wc=\"http://worldcat.org/xid/isbn/\" version=\"1.0\">\n    <xsl:output method=\"text\" omit-xml-declaration=\"yes\" indent=\"no\"/>\n    <xsl:template match=\"wc:isbn\">\n        <code>\n    @BOOK{CiteKeyGoesHere,\n        AUTHOR = \"<xsl:value-of select=\"@author\"/>\",\n        TITLE = \"<xsl:value-of select=\"@title\"/>\",\n        PUBLISHER = \"<xsl:value-of select=\"@publisher\"/>\",\n        ADDRESS = \"<xsl:value-of select=\"@city\"/>\",\n        YEAR =\"<xsl:value-of select=\"@year\"/>\"}\n</code>\n    </xsl:template>\n</xsl:stylesheet>\n"

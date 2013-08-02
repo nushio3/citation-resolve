@@ -14,4 +14,6 @@ convert document identifiers such as DOI, ISBN, arXiv ID to bibliographic refere
 TODO: suppport text-based CSL local database instead of SQL (easier to handle with repositories.)
 
 
+This program requrires command-line tool `xsltproc` to parse XML (to resolve ISBN only).
+
 cf. http://crosscite.org/cn/ for citation resolve mechanism.

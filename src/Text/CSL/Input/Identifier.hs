@@ -11,7 +11,7 @@
 
 
 module Text.CSL.Input.Identifier
-       (EReference, readID, readDOI, readArXiv, readBibcode, readISBN )
+       (EReference, resolveID)
        where
 
 
