@@ -15,7 +15,7 @@ module Text.CSL.Input.Identifier.Internal where
 import           Control.Applicative ((<$>))
 import           Control.Lens (_2, Iso, iso, over,  Simple, to, use, (%=))
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.State.Strict as State
+import           Control.Monad.State as State
 import           Control.Monad.Trans.Either
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Generic as AG
@@ -30,18 +30,14 @@ import qualified Data.Yaml as Yaml
 import           Network.Curl.Download (openURIWithOpts)
 import           Network.Curl.Opts (CurlOption(CurlFollowLocation, CurlHttpHeaders))
 import           Safe (headMay)
-import           System.Directory (createDirectoryIfMissing)
+import           System.Directory (createDirectoryIfMissing, doesFileExist)
 import           System.Process (runInteractiveCommand, system)
-import           System.IO (hGetContents, hClose)
+import           System.IO (hGetContents, hClose, hPutStrLn, stderr)
 import           Text.CSL (Reference, readBiblioString, BibFormat(Bibtex, Json))
 import           Text.Printf
 
 import qualified Paths_citation_resolve as Paths
 
--- $setup
--- >>> import Control.Applicative((<$>), (<*>))
--- >>> import Data.Either.Utils(forceEither)
--- >>> import Text.CSL
 
 
 -- | The data structure that carries the resolved references.
@@ -65,15 +61,21 @@ instance Yaml.ToJSON DB where
 
 
 
-withDBFile :: (MonadIO m, MonadState DB m) => FilePath -> m a -> EitherT String m a
+
+withDBFile :: (MonadIO m, MonadState DB m) => FilePath -> m a -> m a
 withDBFile fn prog = do
-  con <- liftIO $ BS.readFile fn
-  let initStateE :: Either String DB
-      initStateE = maybe (Left $ "cannot read/parse DB file: " ++ fn) Right
-                         (Yaml.decode con)
-  initState <- hoistEither initStateE
+  x <- liftIO $ doesFileExist fn
+  initState <- case x of
+    False -> return def
+    True -> do
+      con <- liftIO $ BS.readFile fn
+      case Yaml.decode con of
+        Just st -> return st
+        Nothing -> do
+          liftIO $ hPutStrLn stderr $ "cannot read/parse DB file: " ++ fn
+          return def
   State.put initState
-  ret <- lift prog
+  ret <- prog
   finalState <- State.get
   liftIO $ BS.writeFile fn $ Yaml.encode (finalState :: DB)
   return ret
@@ -97,22 +99,12 @@ resolveBibtex url str = do
     []  -> left $ url ++ " returned no parsable reference."
     _   -> left $ url ++ " returned multiple references."
 
--- | Multi-purpose reference ID resolver. Resolve 'String' starting
--- with "arXiv:", "isbn:", "doi:" to 'Reference' .
---
--- >>> (==) <$> readArXiv "1204.4779" <*> readID "arXiv:1204.4779"
--- True
--- >>> (==) <$> readDOI "10.1088/1749-4699/5/1/015003" <*> readID "doi:10.1088/1749-4699/5/1/015003"
--- True
--- >>> (==) <$> readBibcode "2012CS&D....5a5003M" <*>  readID "bibcode:2012CS&D....5a5003M"
--- True
--- >>> (==) <$> readISBN "9780199233212" <*> readID "isbn:9780199233212"
--- True
 
 
-
-resolveID :: forall m. (MonadIO m, MonadState DB m) => RM m String Reference
-resolveID url = do
+-- | resolve a document url to a 'Reference', or emits a error
+--   message with reason why it fails.
+resolveEither :: forall m. (MonadIO m, MonadState DB m) => String -> EitherT String m Reference
+resolveEither url = do
   val <- use $ db . to (Map.lookup url)
   case val of
     Just bibtexStr -> resolveBibtex url bibtexStr
@@ -182,7 +174,7 @@ resolveISBN docIDStr = do
   bs <- liftIOE $ openURIWithOpts opts url
   str <- liftIO $ do
     xsltfn <- getDataFileName "isbn2bibtex.xsl"
---    writeFile xsltfn xsl
+    writeFile xsltfn xsl
     (hIn,hOut,_,_) <- runInteractiveCommand $ printf "xsltproc %s -" xsltfn
     BS.hPutStr hIn bs
     hClose hIn
@@ -190,6 +182,9 @@ resolveISBN docIDStr = do
   return str
 
   where
+    -- we must dynamically generate this file because it does not
+    -- exist at the test timing.
+
     xsl = "<?xml version=\"1.0\"?>\n<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" xmlns:wc=\"http://worldcat.org/xid/isbn/\" version=\"1.0\">\n    <xsl:output method=\"text\" omit-xml-declaration=\"yes\" indent=\"no\"/>\n    <xsl:template match=\"wc:isbn\">\n        <code>\n    @BOOK{CiteKeyGoesHere,\n        AUTHOR = \"<xsl:value-of select=\"@author\"/>\",\n        TITLE = \"<xsl:value-of select=\"@title\"/>\",\n        PUBLISHER = \"<xsl:value-of select=\"@publisher\"/>\",\n        ADDRESS = \"<xsl:value-of select=\"@city\"/>\",\n        YEAR =\"<xsl:value-of select=\"@year\"/>\"}\n</code>\n    </xsl:template>\n</xsl:stylesheet>\n"
 
 

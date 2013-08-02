@@ -1,1 +1,67 @@
-[]
+- - arXiv:1204.4779
+  - - Query Results from the ADS Database
+    - ''
+    - ''
+    - ! 'Retrieved 1 abstracts, starting with number 1.  Total number selected: 1.'
+    - ''
+    - ! '@ARTICLE{2012CS&D....5a5003M,'
+    - ! '   author = {{Muranushi}, T.},'
+    - ! '    title = "{Paraiso: an automated tuning framework for explicit solvers
+      of partial differential equations}",'
+    - ! '  journal = {Computational Science and Discovery},'
+    - archivePrefix = "arXiv",
+    - ! '   eprint = {1204.4779},'
+    - ! ' primaryClass = "astro-ph.IM",'
+    - ! '     year = 2012,'
+    - ! '    month = jan,'
+    - ! '   volume = 5,'
+    - ! '   number = 1,'
+    - ! '      eid = {015003},'
+    - ! '    pages = {015003},'
+    - ! '      doi = {10.1088/1749-4699/5/1/015003},'
+    - ! '   url = {http://adsabs.harvard.edu/abs/2012CS%26D....5a5003M},'
+    - ! '  adsnote = {Provided by the SAO/NASA Astrophysics Data System}'
+    - ! '}'
+    - ''
+- - bibcode:2012CS&D....5a5003M
+  - - Query Results from the ADS Database
+    - ''
+    - ''
+    - ! 'Retrieved 1 abstracts, starting with number 1.  Total number selected: 1.'
+    - ''
+    - ! '@ARTICLE{2012CS&D....5a5003M,'
+    - ! '   author = {{Muranushi}, T.},'
+    - ! '    title = "{Paraiso: an automated tuning framework for explicit solvers
+      of partial differential equations}",'
+    - ! '  journal = {Computational Science and Discovery},'
+    - archivePrefix = "arXiv",
+    - ! '   eprint = {1204.4779},'
+    - ! ' primaryClass = "astro-ph.IM",'
+    - ! '     year = 2012,'
+    - ! '    month = jan,'
+    - ! '   volume = 5,'
+    - ! '   number = 1,'
+    - ! '      eid = {015003},'
+    - ! '    pages = {015003},'
+    - ! '      doi = {10.1088/1749-4699/5/1/015003},'
+    - ! '   url = {http://adsabs.harvard.edu/abs/2012CS%26D....5a5003M},'
+    - ! '  adsnote = {Provided by the SAO/NASA Astrophysics Data System}'
+    - ! '}'
+    - ''
+- - doi:10.1088/1749-4699/5/1/015003
+  - - ! '@article{Muranushi_2012, title={Paraiso: an automated tuning framework for
+      explicit solvers of partial differential equations}, volume={5}, url={http://dx.doi.org/10.1088/1749-4699/5/1/015003},
+      DOI={10.1088/1749-4699/5/1/015003}, number={1}, journal={Computational Science
+      & Discovery}, publisher={IOP Publishing}, author={Muranushi, Takayuki}, year={2012},
+      month={Jan}, pages={015003}}'
+- - isbn:9780199233212
+  - - ''
+    - ! '      '
+    - ! '    @BOOK{CiteKeyGoesHere,'
+    - ! '        AUTHOR = "Cristopher Moore, Stephan Mertens.",'
+    - ! '        TITLE = "The nature of computation",'
+    - ! '        PUBLISHER = "Oxford University Press",'
+    - ! '        ADDRESS = "Oxford [England]",'
+    - ! '        YEAR ="2008"}'
+    - ''
+    - ! ' '
