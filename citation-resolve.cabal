@@ -72,8 +72,6 @@ Test-Suite doctests
   Ghc-Options: -Wall -threaded 
   Main-Is: doctests.hs
   
-  other-modules: Build_doctests
-
   Build-Depends:
       base
     , directory >= 1.1
