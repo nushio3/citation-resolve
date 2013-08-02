@@ -28,18 +28,18 @@ import           Text.CSL.Input.Identifier.Internal
 
 
 
--- | resolve a document url to a 'Reference'. returns an empty reference when someting fails. 
---  "arXiv:", "isbn:", "doi:" to 'Reference' .
+-- | Resolve a document url to a 'Reference'. returns an empty reference when someting fails. 
+--   prefix the document ID with one of "arXiv:", "doi:", "bibcode:" or "isbn:" .
 -- 
 --
--- >>> liftM title $ resolveDef "arXiv:1204.4779"
--- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
--- >>> liftM title $ resolveDef "doi:10.1088/1749-4699/5/1/015003"
--- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
--- >>> liftM title $ resolveDef "bibcode:2012CS&D....5a5003M"
--- "Paraiso: an automated tuning framework for explicit solvers of partial differential equations"
--- >>> liftM title $ resolveDef "isbn:9780199233212"
--- "The nature of computation"
+-- >>> do { ref <- resolveDef "arXiv:1204.4779" ; putStrLn $ title ref }
+-- Paraiso: an automated tuning framework for explicit solvers of partial differential equations
+-- >>> do { ref <- resolveDef "doi:10.1088/1749-4699/5/1/015003" ; print $ author ref }
+-- [Takayuki Muranushi]
+-- >>> do { ref <- resolveDef "bibcode:2012CS&D....5a5003M" ; putStrLn $ containerTitle ref }
+-- Computational Science and Discovery
+-- >>> do { ref <- resolveDef "isbn:9784274068850" ; putStrLn $ title ref }
+-- Sugoi hasukeru tanoshiku manabō
 
 
 resolve :: (MonadIO m, MonadState DB m) => String -> m Reference

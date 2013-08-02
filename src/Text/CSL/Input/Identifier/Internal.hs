@@ -20,7 +20,7 @@ import           Control.Monad.Trans.Either
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Generic as AG
 import qualified Data.ByteString.Char8 as BS
-import           Data.Char (toLower)
+import           Data.Char (toLower, isSpace)
 import           Data.Default(Default(..))
 import           Data.List (span)
 import qualified Data.Map.Strict as Map
@@ -153,6 +153,7 @@ resolveArXiv docIDStr = do
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&arXiv:" ++ docIDStr
   bs <- liftIOE $ openURIWithOpts opts url
   return $
+    unlines . drop 2 . filter (any (not . isSpace)) . lines $
     String.replace "adsurl" "url" $
     BS.unpack bs
 
@@ -163,6 +164,7 @@ resolveBibcode docIDStr = do
       url = "http://adsabs.harvard.edu/cgi-bin/bib_query?data_type=BIBTEX&bibcode=" ++ docIDStr
   bs <- liftIOE $ openURIWithOpts opts url
   return $
+    unlines . drop 2 . filter (any (not . isSpace)) . lines $
     String.replace "adsurl" "url" $ BS.unpack bs
 
 resolveISBN :: MonadIO m => RM m String String
@@ -179,7 +181,7 @@ resolveISBN docIDStr = do
     BS.hPutStr hIn bs
     hClose hIn
     hGetContents hOut
-  return str
+  return $ unlines . filter (any (not . isSpace)) . lines $ str
 
   where
     -- we must dynamically generate this file because it does not
