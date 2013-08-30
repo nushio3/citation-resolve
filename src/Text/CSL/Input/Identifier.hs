@@ -11,7 +11,7 @@
 --  making the server load as little as possible.
 
 module Text.CSL.Input.Identifier
-       (resolveEither, resolve)
+       (resolveEither, resolve, withDBFile, DB(..))
        where
 
 import           Control.Monad.IO.Class
@@ -28,9 +28,9 @@ import           Text.CSL.Input.Identifier.Internal
 
 
 
--- | Resolve a document url to a 'Reference'. returns an empty reference when someting fails. 
+-- | Resolve a document url to a 'Reference'. returns an empty reference when someting fails.
 --   prefix the document ID with one of "arXiv:", "doi:", "bibcode:" or "isbn:" .
--- 
+--
 --
 -- >>> do { ref <- resolveDef "arXiv:1204.4779" ; putStrLn $ title ref }
 -- Paraiso: an automated tuning framework for explicit solvers of partial differential equations
@@ -43,12 +43,12 @@ import           Text.CSL.Input.Identifier.Internal
 
 
 resolve :: (MonadIO m, MonadState DB m) => String -> m Reference
-resolve = liftM (either (const emptyReference) id) . runEitherT . resolveEither 
+resolve = liftM (either (const emptyReference) id) . runEitherT . resolveEither
 
 -- | Resolve the document id using the default database.
 
 resolveDef :: String -> IO Reference
 resolveDef url = do
-  fn <- getDataFileName "default.db"             
+  fn <- getDataFileName "default.db"
   let go = withDBFile fn $ resolve url
   State.evalStateT go def

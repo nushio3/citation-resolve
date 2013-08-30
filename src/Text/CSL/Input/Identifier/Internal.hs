@@ -40,7 +40,11 @@ import qualified Paths_citation_resolve as Paths
 
 
 
--- | The data structure that carries the resolved references.
+-- | The data structure that carries the resolved references.  Since
+--   the mapping @Reference -> BibTeX@ is not the inverse of 
+--   @BibTeX -> Reference@ for the version @citeproc-hs-0.3.8@ and loses some
+--   information, we choose to store the original BibTeX string in the DB,
+--  rather  than 'Reference'.
 newtype DB = DB { unDB :: Map.Map String String}
 
 -- | The lens for accessing the map within the DB.

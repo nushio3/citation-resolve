@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                citation-resolve
-version:             0.3
+version:             0.3.0.2
 synopsis:            convert document IDs such as DOI, ISBN, arXiv ID to bibliographic reference.
 description:         
   This modules provides a way to convert document identifiers, such
@@ -13,7 +13,7 @@ description:
   Each type of identifiers will be converted via internet services
   to a bibliographic record of type 'Text.CSL.Reference' , which in
   turn can be rendered in various format using @citeproc-hs@ package
-  <hackage.haskell.org/package/citeproc-hs> .
+  <http://hackage.haskell.org/package/citeproc-hs> .
   
   .
 
