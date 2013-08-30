@@ -11,7 +11,7 @@
 --  making the server load as little as possible.
 
 module Text.CSL.Input.Identifier
-       (resolveEither, resolve, withDBFile, DB(..))
+       (resolveEither, resolve, withDBFile, DB(..), db)
        where
 
 import           Control.Monad.IO.Class
