@@ -20,6 +20,10 @@ description:
   Moreover, the server responses are cached in a local database,
   making the server load as little as possible.
 
+  .
+
+  At the moment, citation-resolve requires "xsltproc" executable 
+  to parse xml, in order to resolve ISBNs.
 
 
 homepage:            https://github.com/nushio3/citation-resolve
