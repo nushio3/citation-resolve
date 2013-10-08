@@ -13,7 +13,8 @@
 module Text.CSL.Input.Identifier.Internal where
 
 import           Control.Applicative ((<$>))
-import           Control.Lens (_2, Iso, iso, over,  Simple, to, use, (%=))
+import           Control.Lens (_2, Iso, iso, over,  Simple, to, use, (%=), (.=))
+import           Control.Lens.TH 
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.State as State
 import           Control.Monad.Trans.Either
@@ -43,31 +44,33 @@ import qualified Paths_citation_resolve as Paths
 -- | The data structure that carries the resolved references.  Since
 --   the mapping @Reference -> BibTeX@ is not the inverse of 
 --   @BibTeX -> Reference@ for the version @citeproc-hs-0.3.8@ and loses some
---   information, we choose to store the original BibTeX string in the DB,
+--   information, we choose to store the original BibTeX string in the Database,
 --  rather  than 'Reference'.
-newtype DB = DB { unDB :: Map.Map String String}
+newtype Database = Database { _databaseMap :: Map.Map String String}
 
--- | The lens for accessing the map within the DB.
-db :: Simple Iso DB (Map.Map String String)
-db = iso unDB DB
+-- | The lens for accessing the map within the Database.
 
-instance Default DB where def = DB Map.empty
+makeClassy ''Database
+--db :: Simple Iso Database (Map.Map String String)
+--db = iso unDatabase Database
 
-instance Yaml.FromJSON DB where
+instance Default Database where def = Database Map.empty
+
+instance Yaml.FromJSON Database where
   parseJSON x0 = do
     x1 <- Yaml.parseJSON x0
     let x1' :: [(String, [String])]
         x1' = x1
-    return $ DB $ Map.fromList $ map (over _2 unlines) x1'
+    return $ Database $ Map.fromList $ map (over _2 unlines) x1'
 
-instance Yaml.ToJSON DB where
-  toJSON = Yaml.toJSON . map (over _2 lines) . Map.toList . unDB
-
-
+instance Yaml.ToJSON Database where
+  toJSON = Yaml.toJSON . map (over _2 lines) . Map.toList . _databaseMap
 
 
-withDBFile :: (MonadIO m, MonadState DB m) => FilePath -> m a -> m a
-withDBFile fn prog = do
+
+
+withDatabaseFile :: (MonadIO m, MonadState s m, HasDatabase s) => FilePath -> m a -> m a
+withDatabaseFile fn prog = do
   x <- liftIO $ doesFileExist fn
   initState <- case x of
     False -> return def
@@ -76,12 +79,12 @@ withDBFile fn prog = do
       case Yaml.decode con of
         Just st -> return st
         Nothing -> do
-          liftIO $ hPutStrLn stderr $ "cannot read/parse DB file: " ++ fn
+          liftIO $ hPutStrLn stderr $ "cannot read/parse Database file: " ++ fn
           return def
-  State.put initState
+  database .= (initState::Database)
   ret <- prog
-  finalState <- State.get
-  liftIO $ BS.writeFile fn $ Yaml.encode (finalState :: DB)
+  finalState <- use database
+  liftIO $ BS.writeFile fn $ Yaml.encode (finalState :: Database)
   return ret
 
 
@@ -107,16 +110,16 @@ resolveBibtex url str = do
 
 -- | resolve a document url to a 'Reference', or emits a error
 --   message with reason why it fails.
-resolveEither :: forall m. (MonadIO m, MonadState DB m) => String -> EitherT String m Reference
+resolveEither :: forall m s.(MonadIO m, MonadState s m, HasDatabase s) => String -> EitherT String m Reference
 resolveEither url = do
-  val <- use $ db . to (Map.lookup url)
+  val <- use $ databaseMap . to (Map.lookup url)
   case val of
     Just bibtexStr -> resolveBibtex url bibtexStr
     Nothing -> do
       reader <- hoistEither selectResolver
       bibtexStr <- reader addr
       ret <- resolveBibtex url bibtexStr
-      db %= Map.insert url bibtexStr
+      databaseMap %= Map.insert url bibtexStr
       return ret
 
 

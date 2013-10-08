@@ -11,7 +11,7 @@
 --  making the server load as little as possible.
 
 module Text.CSL.Input.Identifier
-       (resolveEither, resolve, withDBFile, DB(..), db)
+       (resolveEither, resolve, withDatabaseFile, Database(..), database, databaseMap, HasDatabase(..))
        where
 
 import           Control.Monad.IO.Class
@@ -42,7 +42,7 @@ import           Text.CSL.Input.Identifier.Internal
 -- Sugoi hasukeru tanoshiku manabō
 
 
-resolve :: (MonadIO m, MonadState DB m) => String -> m Reference
+resolve :: (MonadIO m, MonadState s m, HasDatabase s) => String -> m Reference
 resolve = liftM (either (const emptyReference) id) . runEitherT . resolveEither
 
 -- | Resolve the document id using the default database.
@@ -50,5 +50,6 @@ resolve = liftM (either (const emptyReference) id) . runEitherT . resolveEither
 resolveDef :: String -> IO Reference
 resolveDef url = do
   fn <- getDataFileName "default.db"
-  let go = withDBFile fn $ resolve url
-  State.evalStateT go def
+  let go = withDatabaseFile fn $ resolve url
+  State.evalStateT go (def :: Database)
+
