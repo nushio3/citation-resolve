@@ -14,10 +14,13 @@ module Text.CSL.Input.Identifier
        (resolveEither, resolve, withDatabaseFile, Database(..), database, databaseMap, HasDatabase(..))
        where
 
+import qualified Control.Lens as Lens
 import           Control.Monad.IO.Class
 import           Control.Monad.State as State
 import           Control.Monad.Trans.Either
 import           Data.Default
+import qualified Data.Map as Map
+import qualified Data.Text as Text
 import           Text.CSL.Reference (emptyReference, Reference)
 import           Text.CSL.Input.Identifier.Internal
 
@@ -45,6 +48,23 @@ import           Text.CSL.Input.Identifier.Internal
 resolve :: (MonadIO m, MonadState s m, HasDatabase s) => String -> m Reference
 resolve = liftM (either (const emptyReference) id) . runEitherT . resolveEither
 
+
+-- | Access the resolver database and generate the BibTeX item string for the document,
+--   using the url as the citation-key.
+
+toBibTeXItem :: (MonadIO m, MonadState s m, HasDatabase s) => String -> m Text.Text
+toBibTeXItem url = do 
+  _ <- resolve url
+  dbMap <- Lens.use databaseMap
+  let ret = case Map.lookup url dbMap of
+        Nothing -> ""
+        Just str -> let (s0,s1) = break (=='{') str
+                        (_,s2) = break (==',') s1
+                    in s0 ++ "{" ++ url ++ s2
+          
+  return $ Text.pack ret
+
+
 -- | Resolve the document id using the default database.
 
 resolveDef :: String -> IO Reference
@@ -52,4 +72,5 @@ resolveDef url = do
   fn <- getDataFileName "default.db"
   let go = withDatabaseFile fn $ resolve url
   State.evalStateT go (def :: Database)
+
 
