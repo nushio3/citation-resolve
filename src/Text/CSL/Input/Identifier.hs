@@ -11,7 +11,8 @@
 --  making the server load as little as possible.
 
 module Text.CSL.Input.Identifier
-       (resolveEither, resolve, withDatabaseFile, Database(..), database, databaseMap, HasDatabase(..))
+       (resolveEither, resolve, withDatabaseFile, Database(..), database, databaseMap, HasDatabase(..),
+        toBibTeXItem)
        where
 
 import qualified Control.Lens as Lens
