@@ -26,7 +26,6 @@ import           Data.Default(Default(..))
 import           Data.List (span)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import qualified Data.String.Utils as String (replace)
 import qualified Data.Yaml as Yaml
 import           Network.Curl.Download (openURIWithOpts)
 import           Network.Curl.Opts (CurlOption(CurlFollowLocation, CurlHttpHeaders))
@@ -51,8 +50,6 @@ newtype Database = Database { _databaseMap :: Map.Map String String}
 -- | The lens for accessing the map within the Database.
 
 makeClassy ''Database
---db :: Simple Iso Database (Map.Map String String)
---db = iso unDatabase Database
 
 instance Default Database where def = Database Map.empty
 
@@ -67,7 +64,8 @@ instance Yaml.ToJSON Database where
   toJSON = Yaml.toJSON . map (over _2 lines) . Map.toList . _databaseMap
 
 
-
+-- | Excecute the program using the given database file. The file will be
+--   created if it didn't exist.
 
 withDatabaseFile :: (MonadIO m, MonadState s m, HasDatabase s) => FilePath -> m a -> m a
 withDatabaseFile fn prog = do
@@ -141,7 +139,7 @@ resolveEither url = do
        , ("isbn"    , resolveISBN    ) ]
 
 
--- resolvers for specific document IDs.
+-- | resolvers for specific document IDs.
 
 resolveDOI :: MonadIO m => RM m String String
 resolveDOI docIDStr = do
@@ -161,7 +159,7 @@ resolveArXiv docIDStr = do
   bs <- liftIOE $ openURIWithOpts opts url
   return $
     unlines . drop 2 . filter (any (not . isSpace)) . lines $
-    String.replace "adsurl" "url" $
+    stringReplace "adsurl" "url" $
     BS.unpack bs
 
 resolveBibcode :: MonadIO m => RM m String String
@@ -172,7 +170,7 @@ resolveBibcode docIDStr = do
   bs <- liftIOE $ openURIWithOpts opts url
   return $
     unlines . drop 2 . filter (any (not . isSpace)) . lines $
-    String.replace "adsurl" "url" $ BS.unpack bs
+    stringReplace "adsurl" "url" $ BS.unpack bs
 
 resolveISBN :: MonadIO m => RM m String String
 resolveISBN docIDStr = do
@@ -203,3 +201,10 @@ getDataFileName fn = do
   dd <- Paths.getDataDir
   createDirectoryIfMissing True dd
   Paths.getDataFileName fn
+
+-- | String version of replace.
+
+stringReplace :: String -> String -> String -> String
+stringReplace a b c = 
+  Text.unpack $
+  Text.replace (Text.pack a) (Text.pack b) (Text.pack c)
