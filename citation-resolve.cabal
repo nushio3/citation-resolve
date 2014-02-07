@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                citation-resolve
-version:             0.4.2.2
+version:             0.4.2.3
 synopsis:            convert document IDs such as DOI, ISBN, arXiv ID to bibliographic reference.
 description:         
   This modules provides a way to convert document identifiers, such

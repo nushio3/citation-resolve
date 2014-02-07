@@ -12,6 +12,7 @@
 
 module Text.CSL.Input.Identifier
        (resolveEither, resolve, withDatabaseFile, Database(..), database, databaseMap, HasDatabase(..),
+        resolveDef, 
         toBibTeXItem)
        where
 
