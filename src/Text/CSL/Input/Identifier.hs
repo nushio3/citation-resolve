@@ -75,4 +75,11 @@ resolveDef url = do
   let go = withDatabaseFile fn $ resolve url
   State.evalStateT go (def :: Database)
 
+-- | Resolve the document id using the default database, return an either value with 
+--   any errors that occur
 
+resolveEitherDef :: String -> IO (Either String Reference)
+resolveEitherDef s = do
+  fn <- getDataFileName "default.db"
+  let go = withDatabaseFile fn $ ( (runEitherT.resolveEither) s)
+  State.evalStateT go (Database Map.empty)
